@@ -1,0 +1,30 @@
+{
+  "name": "seargine",
+  "version": "1.0.0",
+  "description": "Headful, daemon-backed web search and fetch CLI that returns clean Markdown for small language models.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "seargine": "bin/seargine.js",
+    "seargined": "bin/seargined.js"
+  },
+  "scripts": {
+    "start": "node bin/seargine.js",
+    "daemon": "node bin/seargined.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skill",
+    "README.md"
+  ],
+  "dependencies": {
+    "commander": "^15.0.0",
+    "defuddle": "^0.19.4",
+    "linkedom": "^0.18.13",
+    "puppeteer-core": "^25.11.0"
+  }
+}
