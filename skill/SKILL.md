@@ -22,17 +22,16 @@ Prints each result as a Markdown heading — linked title, then a snippet.
 
 ## Fetch
 
-```bash
-seargine fetch https://example.com
-seargine fetch https://a.com https://b.com
-```
+seargine fetch <url> | grep -i "<keyword>"
+seargine fetch <url> | grep -A 20 -E "^#+ .*<section>.*"
 
-Prints the page body as Markdown, without menus, ads or sidebars. It is plain
-stdout, so pipe it: `seargine fetch <url> | grep -i <keyword>`.
+Prints the page body as Markdown. CRITICAL: To save context and avoid hitting token limits, never run seargine fetch alone. Always pipe the output into grep, awk, or head to extract only the specific paragraph, section, or lines relevant to the user's request.
+
 
 ## Typical flow
 
-Search for a topic, pick the useful URLs from the results, then fetch those.
+1. Search for a topic using seargine search.
+2. Pick the most relevant URLs from the results.
+3. Fetch those URLs always combining them with grep (e.g., seargine fetch <url> | grep -A 15 "install") to retrieve only the required segment instead of the full page.
 
-Do not fall back to `curl`, `wget` or an API when a search fails — retry the
-search with different words, or fetch a page you know covers it.
+Do not fall back to curl, wget or an API when a search fails — retry the search with different words, or fetch a page you know covers it.
