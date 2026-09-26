@@ -1,55 +1,55 @@
 # seargine
 
-Gives a language model a browser. Ask for a search or a page, get back clean,
-short Markdown — no menus, no ads, no ANSI codes, no chatter.
+seargine lets an AI model search the web and read web pages. You give it a
+search or a URL and it prints back short, clean Markdown text. Menus, ads and
+other clutter are removed.
 
-A real Chrome or Brave stays warm in a background daemon, so the first call
-takes a few seconds and every one after that is quick. Pages are cleaned up by
-[Defuddle](https://github.com/kepano/defuddle). On Linux, `gamescope` can keep
-the browser window off your screen.
+It uses the Chrome or Brave you already have installed. The browser keeps
+running in the background after the first command, so the first one takes a
+few seconds and the rest are fast. The page cleanup is done by
+[Defuddle](https://github.com/kepano/defuddle).
 
 ## Install
 
-You need **Node 20+** and a Chromium browser you already have — Chrome,
-Chromium or Brave. seargine points at it; it never downloads its own.
+You need Node 20 or newer and Chrome or Chromium (brave etc). seargine uses
+your browser. It doesn't download its own.
 
 ```bash
 npm install
 npm link
 ```
 
-That puts `seargine` on your PATH. Check it:
+Now you can run `seargine` from any folder. Try it:
 
 ```bash
 seargine search "hello world" --limit 3
 ```
 
-Two things worth knowing:
+If you use nvm, `npm link` only installs it for the Node version you're on
+right now. After switching versions, run `npm link` again, or symlink
+`seargine` into `~/.local/bin`.
 
-- With nvm, `npm link` installs into the Node version you have active, so
-  `seargine` disappears if you switch versions. Re-run `npm link` there, or
-  symlink it into `~/.local/bin`.
-- On Linux, install [`gamescope`](https://github.com/ValveSoftware/gamescope)
-  if you don't want to see the browser window. Without it, the window shows up
-  — the browser is always headful, on purpose.
+The browser window will show up on your screen. On Linux you can hide it by
+installing [gamescope](https://github.com/ValveSoftware/gamescope). seargine
+uses it automatically when it's installed.
 
-Don't want it on your PATH? `node bin/seargine.js ...` works the same.
+You can also skip `npm link` and run `node bin/seargine.js` instead.
 
-### Give it to your agent
+### Using it with an AI agent
 
-A ready-made skill lives in [`skill/SKILL.md`](skill/SKILL.md). Drop it where
-your agent looks for skills:
+[`skill/SKILL.md`](skill/SKILL.md) tells an agent how to use seargine. Copy it
+to the folder where your agent looks for skills:
 
 ```bash
 mkdir -p ~/.agents/skills/seargine && cp skill/SKILL.md ~/.agents/skills/seargine/
-# Claude Code reads ~/.claude/skills instead:
+# Claude Code uses ~/.claude/skills instead:
 mkdir -p ~/.claude/skills/seargine && cp skill/SKILL.md ~/.claude/skills/seargine/
 ```
 
-It covers `search` and `fetch` and nothing else — enough for a model to look
-things up, short enough that it doesn't drown in options.
+It only covers `search` and `fetch`. That's all the agent needs, and a short
+skill is easier for it to follow.
 
-## Using it
+## Usage
 
 ### Search
 
@@ -67,8 +67,10 @@ Results for "node.js esm modules" (3 results)
 Node.js has two module systems: CommonJS and ECMAScript modules.
 ```
 
-Google, falling back to DuckDuckGo when Google refuses. `--fetch` appends the
-Markdown of the top results, so one command can answer a question end to end.
+It searches Google. If Google blocks the search, it tries DuckDuckGo.
+
+`--fetch` also opens the top results and adds their text under the list, so
+you can get an answer with a single command.
 
 ### Fetch
 
@@ -89,98 +91,117 @@ words: 17
 Body in clean Markdown, without menus, sidebars, ads or comments...
 ```
 
-`--raw` gives you the cleaned HTML instead, `--links` only the links,
-`--no-frontmatter` drops the header, `--max-chars` truncates long pages.
+- `--max-chars 2000` cuts the text off after 2000 characters
+- `--no-frontmatter` removes the title/url block at the top
+- `--links` prints only the links on the page
+- `--raw` prints the cleaned HTML instead of Markdown
 
-### The rest
+### Other commands
 
 ```bash
-seargine links <url>   # just the links
-seargine status        # daemon, browser, tab pool, queue
-seargine stop          # shut it all down
+seargine links <url>   # only the links on a page
+seargine status        # shows if the browser is running
+seargine stop          # closes the browser
 seargine restart
 ```
 
-`--json` on any command gives you structured output instead of Markdown.
-`--respect-robots` skips URLs robots.txt disallows. Also global: `--timeout`,
-`--quiet`, `--config`.
+These flags work with any command:
 
-## When it fails
+- `--json` prints JSON instead of Markdown
+- `--timeout <ms>` how long to wait before giving up
+- `--quiet` prints fewer messages
+- `--config <path>` uses a different config file
 
-stdout only ever carries what you asked for; logs go to stderr. Errors are one
-line and one non-zero exit code:
+`search` and `fetch` also take `--respect-robots`, which skips pages the site's
+robots.txt asks crawlers not to visit.
+
+## Errors
+
+Only the result goes to stdout. Logs and errors go to stderr, so they never
+get mixed into the result. When something fails you get one line and a
+non-zero exit code:
 
 ```text
 ERROR: CLOUDFLARE_BLOCKED: challenge did not clear
 ```
 
-The codes: `TIMEOUT`, `NAV_FAILED`, `CLOUDFLARE_BLOCKED`, `CAPTCHA_UNSUPPORTED`,
-`NO_RESULTS`, `BAD_URL`, `DAEMON_ERROR`, `CHROME_NOT_FOUND`, `GAMESCOPE_MISSING`,
-`LAUNCH_FAILED`, `ROBOTS_DISALLOWED`.
+Possible codes: `TIMEOUT`, `NAV_FAILED`, `CLOUDFLARE_BLOCKED`,
+`CAPTCHA_UNSUPPORTED`, `NO_RESULTS`, `BAD_URL`, `DAEMON_ERROR`,
+`CHROME_NOT_FOUND`, `GAMESCOPE_MISSING`, `LAUNCH_FAILED`, `ROBOTS_DISALLOWED`.
 
-Cloudflare interstitials are detected, waited out briefly, and otherwise
-reported. Image captchas return `CAPTCHA_UNSUPPORTED`. There is no solver —
-bypassing those is deliberately out of scope.
+If a site shows a Cloudflare "checking your browser" page, seargine waits a few
+seconds for it to go away. If it doesn't, you get `CLOUDFLARE_BLOCKED`. Image
+captchas give `CAPTCHA_UNSUPPORTED`. seargine doesn't solve captchas and isn't
+going to.
 
 ## Configuration
 
-Optional. Everything has a default, and flags win over the file.
+You don't need a config file. If you want one, create
+`~/.config/seargine/config.json`:
 
-```bash
-$EDITOR ~/.config/seargine/config.json
+```json
+{
+  "searchEngine": "duckduckgo",
+  "poolSize": 2
+}
 ```
 
-The ones you might actually touch:
+Command-line flags override the file. The settings you're most likely to
+change:
 
-| | |
+| Setting | What it does |
 | --- | --- |
-| `chromePath` | Your browser binary, if auto-detection picks the wrong one. |
+| `chromePath` | Path to your browser, if seargine picks the wrong one. |
 | `searchEngine` | `"google"` (default) or `"duckduckgo"`. |
-| `gamescope` | `"auto"`, `"on"` or `"off"`. |
-| `poolSize` | Persistent tabs, which is also the concurrency. Default 3. |
-| `perDomainRateMs` | Minimum gap between hits on the same host. Default 1500. |
-| `idleShutdownMs` | How long the daemon lingers unused. Default 10 min. |
+| `gamescope` | `"auto"` (default), `"on"` or `"off"`. |
+| `poolSize` | How many tabs stay open, which is also how many pages load at once. Default 3. |
+| `perDomainRateMs` | Minimum wait between two requests to the same site. Default 1500 ms. |
+| `idleShutdownMs` | How long the browser stays open with nothing to do. Default 10 minutes. |
 
-There's also `seedProfile`, on by default: at startup the daemon copies cookies
-and preferences from your real browser profile into its own, so it inherits
-your trusted session **without locking your profile** — your browser can stay
-open. A cold, cookie-less profile gets flagged by a lot of sites.
+`seedProfile` is on by default. When seargine starts, it copies the cookies
+and settings from your normal browser into its own separate profile. Sites are
+less likely to block a browser that has cookies. It only copies them, so your
+normal browser can stay open.
 
-Timeouts, viewport, user agent and window mode are in there too; the defaults
-are chosen to look like an ordinary browser, so change them only if you have a
-reason.
+There are more settings (timeouts, window size, user agent, window mode). The
+defaults are set so it looks like a normal browser, so only change them if you
+have a reason to.
 
 ## How it works
 
-Two processes. The CLI parses your arguments, talks to the daemon over a Unix
-socket, prints, exits — spawning the daemon first if it isn't running. The
-daemon owns the browser, a pool of persistent tabs and a job queue.
+There are two programs:
 
-Jobs never open or close tabs: a tab is handed out, reset to `about:blank`, and
-returned to the pool. The queue handles LRU assignment, per-domain rate limits,
-timeouts, and deduplication — ask for the same URL twice at once and the second
-request joins the first.
+- `seargine` is the command you type. It sends your request to the background
+  program, prints the answer and exits. If the background program isn't
+  running, it starts it first.
+- `seargined` is the background program. It runs the browser, keeps a few tabs
+  open and puts requests in a queue until a tab is free.
 
-To stay unremarkable, the launcher starts your system browser with nothing but
-a debugging port and a profile directory, then connects over CDP. No Puppeteer
-flag set, no fake user agent — those are fingerprints themselves. `gamescope`
-only hides the window; the compositor and fingerprint stay real.
+Some details:
+
+- Tabs are reused. A request never opens or closes a tab.
+- It waits at least 1.5 seconds between requests to the same site.
+- If you ask for the same URL twice at the same time, it only loads it once.
+- The browser is started with almost no extra options and keeps its real user
+  agent. Unusual options make it easier for sites to tell it's automated.
+- gamescope only hides the window. The browser still runs the same way.
 
 ```
-bin/     seargine.js (CLI), seargined.js (daemon)
-src/     cli, daemon, ipc, config, fetch, search, format, robots
+bin/          seargine.js (the command), seargined.js (the background program)
+src/          cli, daemon, ipc, config, fetch, search, format, robots
 src/browser/  launcher, pool, queue, cloudflare
-skill/   SKILL.md for agents
+skill/        SKILL.md for agents
 ```
 
 ## Credits
 
-The Google `/goto?url=` decoder in `src/google-goto.js` is adapted from
+The code that decodes Google `/goto?url=` links in `src/google-goto.js` is
+adapted from
 [Google-Goto-URL-Extractor](https://github.com/Xyborg/Google-Goto-URL-Extractor)
 by Martin Aberastegue (MIT).
 
-## Responsible use
+## Use at your own risk
 
-Scraping Google may violate its Terms of Service. This is meant for personal
-use on your own sessions. Per-domain rate limiting is always on, and
-`--respect-robots` honours robots.txt when you ask it to. Your risk.
+Scraping Google may go against its Terms of Service. seargine is meant for
+personal use. It always limits how often it hits the same site, and
+`--respect-robots` makes it follow robots.txt. How you use it is up to you.
