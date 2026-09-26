@@ -16,6 +16,9 @@ export const DEFAULTS = {
   seedProfileFrom: null,
   poolSize: 3,
   gamescope: 'auto',
+  // Under gamescope, render on the integrated GPU so a dedicated one is never
+  // woken up. false => let gamescope pick.
+  gamescopeIgpu: true,
   // null => use the browser's real user agent (recommended).
   userAgent: null,
   // 'maximized' (recommended), 'fullscreen', or 'default'.

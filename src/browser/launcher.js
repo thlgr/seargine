@@ -150,6 +150,75 @@ export function resolveDisplayMode(config = {}) {
   return { mode: 'direct', reason: 'gamescope-not-found' };
 }
 
+function readSysfs(file) {
+  try {
+    return fs.readFileSync(file, 'utf8').trim();
+  } catch {
+    return null;
+  }
+}
+
+export function listGpus(drmDir = '/sys/class/drm') {
+  let entries;
+  try {
+    entries = fs.readdirSync(drmDir);
+  } catch {
+    return [];
+  }
+  const gpus = [];
+  for (const name of entries.filter((n) => /^renderD\d+$/.test(n)).sort()) {
+    const device = path.join(drmDir, name, 'device');
+    const vendor = readSysfs(path.join(device, 'vendor'));
+    const id = readSysfs(path.join(device, 'device'));
+    if (!vendor || !id) continue;
+    const sysfs = fs.realpathSync(device);
+    gpus.push({
+      address: path.basename(sysfs),
+      vendor: vendor.replace(/^0x/, ''),
+      device: id.replace(/^0x/, ''),
+      bootVga: readSysfs(path.join(device, 'boot_vga')) === '1',
+      sysfs,
+    });
+  }
+  return gpus;
+}
+
+// Intel iGPUs always sit on the root PCI bus (00:02.0); discrete Arc cards
+// never do. amdgpu only exposes the "vddnb" voltage sensor on APUs.
+function isIntegrated(gpu) {
+  if (gpu.vendor === '8086') return /^[0-9a-f]+:00:/.test(gpu.address);
+  if (gpu.vendor === '1002') {
+    const hwmon = path.join(gpu.sysfs, 'hwmon');
+    let dirs = [];
+    try {
+      dirs = fs.readdirSync(hwmon);
+    } catch {
+      return false;
+    }
+    return dirs.some((dir) => readSysfs(path.join(hwmon, dir, 'in1_label')) === 'vddnb');
+  }
+  return false;
+}
+
+export function findIntegratedGpu(gpus = listGpus()) {
+  const integrated = gpus.filter(isIntegrated);
+  return integrated.find((gpu) => gpu.bootVga) || integrated[0] || null;
+}
+
+// Point every layer that picks a GPU at the same device: Mesa's OpenGL and
+// Vulkan device selection, and NVIDIA's PRIME offload, which would otherwise
+// win when seargine was started from a prime-run shell.
+function gpuEnv(gpu) {
+  const env = { ...process.env };
+  delete env.__NV_PRIME_RENDER_OFFLOAD;
+  delete env.__NV_PRIME_RENDER_OFFLOAD_PROVIDER;
+  env.DRI_PRIME = `pci-${gpu.address.replace(/[:.]/g, '_')}`;
+  env.MESA_VK_DEVICE_SELECT = `${gpu.vendor}:${gpu.device}`;
+  env.__GLX_VENDOR_LIBRARY_NAME = 'mesa';
+  env.__VK_LAYER_NV_optimus = 'non_NVIDIA_only';
+  return env;
+}
+
 export function buildChromeArgs(config, port) {
   const { width, height } = config.viewport || { width: 1280, height: 800 };
   const userDataDir = config.userDataDir || profileDir();
@@ -181,22 +250,28 @@ export function buildCommand(config, port) {
   if (display.mode === 'gamescope') {
     // Headless backend gives Chrome a real display/compositor without a window
     // on the desktop environment, so it stays 100% headful to fingerprinting.
+    const gpu = config.gamescopeIgpu === false ? null : findIntegratedGpu();
+    const gpuArgs = gpu ? ['--prefer-vk-device', `${gpu.vendor}:${gpu.device}`] : [];
     return {
       command: display.binary,
-      args: ['--backend', 'headless', '-W', String(width), '-H', String(height), '--', chrome, ...chromeArgs],
+      args: ['--backend', 'headless', ...gpuArgs, '-W', String(width), '-H', String(height), '--', chrome, ...chromeArgs],
+      env: gpu ? gpuEnv(gpu) : { ...process.env },
       chrome,
       display,
+      gpu,
     };
   }
   if (display.mode === 'xvfb') {
     return {
       command: display.binary,
       args: ['-a', '--server-args', `-screen 0 ${width}x${height}x24`, chrome, ...chromeArgs],
+      env: { ...process.env },
       chrome,
       display,
+      gpu: null,
     };
   }
-  return { command: chrome, args: chromeArgs, chrome, display };
+  return { command: chrome, args: chromeArgs, env: { ...process.env }, chrome, display, gpu: null };
 }
 
 function getFreePort() {
@@ -259,14 +334,18 @@ export async function launchBrowser(config, logger) {
     }
   }
 
-  const { command, args, display } = buildCommand(config, port);
-  logger?.info(`launching browser: ${command} (display=${display.mode}, port=${port})`);
+  const { command, args, env, display, gpu } = buildCommand(config, port);
+  const gpuLabel = gpu ? `${gpu.vendor}:${gpu.device} at ${gpu.address}` : null;
+  logger?.info(`launching browser: ${command} (display=${display.mode}, port=${port}${gpu ? `, gpu=${gpuLabel}` : ''})`);
+  if (display.mode === 'gamescope' && !gpu && config.gamescopeIgpu !== false) {
+    logger?.info('no integrated GPU found; gamescope picks its own');
+  }
 
   const child = spawn(command, args, {
     stdio: ['ignore', 'ignore', 'pipe'],
     // Own process group so we can tear down gamescope + Chrome together.
     detached: true,
-    env: { ...process.env },
+    env,
   });
   child.on('error', (error) => logger?.error(`browser spawn error: ${error.message}`));
 
@@ -305,6 +384,7 @@ export async function launchBrowser(config, logger) {
     chrome,
     display: display.mode,
     gamescope: display.mode === 'gamescope',
+    gpu: gpuLabel,
     stopped,
     async close() {
       try { await browser.disconnect(); } catch {}

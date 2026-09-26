@@ -220,6 +220,7 @@ export class Daemon {
             chrome: this.launch.chrome,
             display: this.launch.display,
             gamescope: this.launch.gamescope,
+            gpu: this.launch.gpu,
           }
         : null,
       browserError: this.browserError ? this.browserError.message : null,

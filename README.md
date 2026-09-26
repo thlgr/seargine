@@ -31,7 +31,8 @@ right now. After switching versions, run `npm link` again, or symlink
 
 The browser window will show up on your screen. On Linux you can hide it by
 installing [gamescope](https://github.com/ValveSoftware/gamescope). seargine
-uses it automatically when it's installed.
+uses it automatically when it's installed. If your computer has both an
+integrated and a dedicated GPU, it runs on the integrated one.
 
 You can also skip `npm link` and run `node bin/seargine.js` instead.
 
@@ -154,6 +155,7 @@ change:
 | `chromePath` | Path to your browser, if seargine picks the wrong one. |
 | `searchEngine` | `"google"` (default) or `"duckduckgo"`. |
 | `gamescope` | `"auto"` (default), `"on"` or `"off"`. |
+| `gamescopeIgpu` | Makes gamescope and the browser use your integrated GPU (Intel or AMD), so a dedicated GPU isn't woken up. Default `true`. Set to `false` to let gamescope choose. |
 | `poolSize` | How many tabs stay open, which is also how many pages load at once. Default 3. |
 | `perDomainRateMs` | Minimum wait between two requests to the same site. Default 1500 ms. |
 | `idleShutdownMs` | How long the browser stays open with nothing to do. Default 10 minutes. |

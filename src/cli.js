@@ -115,6 +115,7 @@ function renderStatus(status) {
     lines.push(`browser: running (pid ${status.browser.pid}, display ${status.browser.display})`);
     lines.push(`chrome: ${status.browser.chrome}`);
     lines.push(`gamescope: ${status.browser.gamescope ? 'active' : 'inactive'}`);
+    if (status.browser.gpu) lines.push(`gpu: ${status.browser.gpu}`);
   } else {
     lines.push(`browser: ${status.browserError ? `error (${status.browserError})` : 'starting'}`);
   }
